@@ -1,0 +1,3542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEV Task Board</title>
+    <!-- Markdown parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Dark mode scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #0f172a;
+        }
+        
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-column: #1a2332;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #00b4d8;
+            --accent-hover: #38bdf8;
+            --critical: #ef4444;
+            --high: #f97316;
+            --medium: #eab308;
+            --low: #22c55e;
+            --border: #334155;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-card);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 100;
+        }
+        
+        .header.command-active {
+            z-index: 350;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .header h1 span { color: var(--accent); }
+        
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        /* Command Bar - Jarvis Chat */
+        .command-bar {
+            flex: 1;
+            max-width: 600px;
+            margin: 0 1.5rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .command-bar:hover {
+            border-color: var(--accent);
+        }
+        
+        .command-bar.expanded {
+            cursor: default;
+            border-color: var(--accent);
+            z-index: 301;
+            position: relative;
+        }
+        
+        .command-bar-collapsed {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1rem;
+        }
+        
+        .command-bar-icon {
+            font-size: 1.25rem;
+        }
+        
+        .command-bar-preview {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .command-bar-expanded {
+            display: none;
+            flex-direction: column;
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            background: var(--bg-card);
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            box-shadow: 0 12px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 180, 216, 0.3);
+            z-index: 300;
+            pointer-events: auto;
+        }
+        
+        .command-bar.expanded .command-bar-expanded {
+            display: flex;
+        }
+        
+        .command-bar-expanded.fullsize {
+            width: 95vw;
+            max-width: 95vw;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            height: 95vh;
+            max-height: 95vh;
+        }
+        
+        .command-bar-expanded.fullsize .jarvis-chat-container {
+            height: calc(95vh - 60px);
+        }
+        
+        /* Native Jarvis Chat Styles */
+        .jarvis-chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+            background: var(--bg-card);
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .jarvis-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .jarvis-message {
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            max-width: 85%;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        
+        .jarvis-message.user {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            align-self: flex-end;
+            margin-left: 15%;
+        }
+        
+        .jarvis-message.assistant {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            align-self: flex-start;
+            margin-right: 15%;
+        }
+        
+        .jarvis-message .msg-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        
+        .jarvis-message .msg-content {
+            white-space: pre-wrap;
+        }
+        
+        .jarvis-chat-input-area {
+            padding: 0.75rem 1rem 1rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .jarvis-typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: typingPulse 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingPulse {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
+            30% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .jarvis-input-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .jarvis-chat-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-main);
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+        
+        .jarvis-chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .jarvis-send-btn {
+            padding: 0.75rem 1rem;
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+        
+        .jarvis-send-btn:hover {
+            background: #5855eb;
+        }
+        
+        .jarvis-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .command-chat-messages {
+            overflow-y: auto;
+            padding: 1rem;
+            height: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .command-chat-message {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            max-width: 85%;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .command-chat-message.from-user {
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 3px solid var(--low);
+            align-self: flex-end;
+        }
+        
+        .command-chat-message.from-Jarvis {
+            background: rgba(99, 102, 241, 0.15);
+            border-left: 3px solid #6366f1;
+            align-self: flex-start;
+        }
+        
+        .command-chat-message.typing {
+            color: var(--text-muted);
+        }
+        
+        .typing-dots {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 0;
+        }
+        
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: typing-bounce 1.4s ease-in-out infinite;
+        }
+        
+        .typing-dots span:nth-child(1) { animation-delay: 0s; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+        
+        .command-chat-input-area {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .command-input-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        
+        .command-chat-input-area .attach-btn {
+            height: 44px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        
+        .command-chat-input-area .attach-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .command-chat-input {
+            flex: 1;
+            height: 44px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.6rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        
+        .command-chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .command-chat-input-area .btn {
+            height: 44px;
+            padding: 0 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            font-size: 0.875rem;
+        }
+        
+        .command-paste-preview {
+            display: none;
+            padding: 0.5rem;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .command-paste-preview.active {
+            display: flex;
+        }
+        
+        .command-paste-preview img {
+            max-width: 150px;
+            max-height: 100px;
+            border-radius: 4px;
+        }
+        
+        .command-paste-preview .remove-btn {
+            background: none;
+            border: none;
+            color: var(--critical);
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        
+        .command-file-name {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .command-attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(0, 180, 216, 0.1);
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .command-attachment-item .remove-attachment {
+            background: none;
+            border: none;
+            color: var(--critical);
+            cursor: pointer;
+            font-size: 0.9rem;
+            line-height: 1;
+        }
+        
+        .command-close-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        
+        .command-close-btn:hover {
+            color: var(--text);
+            border-color: var(--text-muted);
+        }
+        
+        .command-bar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+        }
+        
+        .command-bar-overlay.active {
+            display: block;
+        }
+        
+        .command-expand-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 6px;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .command-expand-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .command-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .command-header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .session-selector {
+            background: var(--bg-dark);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            min-width: 160px;
+        }
+        
+        .session-selector:hover {
+            border-color: var(--accent);
+        }
+        
+        .session-selector:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        /* Stop buttons - icon only, SQUARE (equal width/height) */
+        .stop-btn {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--critical);
+            color: var(--critical);
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stop-btn:hover {
+            background: var(--critical);
+            color: white;
+        }
+        
+        .stop-btn-mini {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--critical);
+            color: var(--critical);
+            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            line-height: 1;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stop-btn-mini:hover {
+            background: var(--critical);
+            color: white;
+        }
+        
+        .stop-icon-btn {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--critical);
+            color: var(--critical);
+            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            line-height: 1;
+            transition: all 0.15s;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .stop-icon-btn:hover {
+            background: var(--critical);
+            color: white;
+        }
+        
+        .stop-all-btn:hover {
+            background: #dc2626;
+        }
+        
+        /* Confirmation Modal */
+        .confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 500;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .confirm-modal.active {
+            display: flex;
+        }
+        
+        .confirm-dialog {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .confirm-dialog h3 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1.1rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .confirm-dialog p {
+            margin: 0 0 1.25rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .confirm-dialog-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+        
+        .confirm-dialog .btn-cancel {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        
+        .confirm-dialog .btn-cancel:hover {
+            border-color: var(--text-muted);
+        }
+        
+        .confirm-dialog .btn-confirm {
+            background: var(--critical);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .confirm-dialog .btn-confirm:hover {
+            background: #dc2626;
+        }
+        
+        /* Session selector with actions */
+        .session-selector-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .session-action-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        
+        .session-action-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        .session-action-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .session-action-btn:disabled:hover {
+            border-color: var(--border);
+            color: var(--text-muted);
+        }
+        
+        .session-action-btn.danger:hover {
+            border-color: var(--critical);
+            color: var(--critical);
+        }
+        
+        /* Legacy classes for backwards compat */
+        .session-edit-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 0.2rem;
+            opacity: 0.6;
+            transition: all 0.15s;
+        }
+        
+        .session-edit-btn:hover {
+            color: var(--accent);
+            opacity: 1;
+        }
+        
+        .session-delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 0.2rem;
+            opacity: 0.6;
+            transition: all 0.15s;
+        }
+        
+        .session-delete-btn:hover {
+            color: var(--critical);
+            opacity: 1;
+        }
+        
+        .new-session-btn {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .new-session-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 180, 216, 0.1);
+        }
+        
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--critical); }
+        .btn-secondary { background: var(--bg-dark); border: 1px solid var(--border); }
+        
+        .filter-select {
+            background: var(--bg-dark);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        /* Agent Legend */
+        .agent-legend {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            cursor: default;
+        }
+        
+        .legend-item .icon {
+            font-size: 1rem;
+        }
+        
+        .legend-item .name {
+            opacity: 0.8;
+        }
+        
+        /* Agent icon in card */
+        .agent-icon {
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+        
+        /* Board */
+        .board {
+            display: flex;
+            gap: 1rem;
+            padding: 1.5rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: calc(100vh - 73px);
+        }
+        
+        .column {
+            flex: 1 0 300px;
+            min-width: 300px;
+            background: var(--bg-column);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 120px);
+        }
+        
+        .column-header {
+            padding: 1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .column-header .count {
+            background: var(--bg-dark);
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .column-cards {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        
+        .card-title {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            padding-right: 1.5rem;
+        }
+        
+        .card-meta {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            font-size: 0.75rem;
+        }
+        
+        .tag {
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            background: var(--bg-dark);
+        }
+        
+        .tag.priority-Critical { background: var(--critical); color: white; }
+        .tag.priority-High { background: var(--high); color: white; }
+        .tag.priority-Medium { background: var(--medium); color: black; }
+        .tag.priority-Low { background: var(--low); color: white; }
+        
+        /* Agent colors */
+        .tag.agent-Jarvis { background: #6366f1; color: white; }
+        .tag.agent-Jarvis { background: #0ea5e9; color: white; }
+        .tag.agent-Architect { background: #8b5cf6; color: white; }
+        .tag.agent-Security-Auditor { background: #ef4444; color: white; }
+        .tag.agent-Code-Reviewer { background: #14b8a6; color: white; }
+        .tag.agent-UX-Manager { background: #ec4899; color: white; }
+        .tag.agent-User { background: #22c55e; color: white; }
+        .tag.agent-Unassigned { background: #64748b; color: white; }
+        
+        /* Notification bubble */
+        .notification-bubble {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: var(--critical);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+        
+        /* Action Items */
+        .action-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .action-item:hover {
+            background: #1a2744;
+        }
+        .action-item.type-question { border-left-color: #f59e0b; }
+        .action-item.type-completion { border-left-color: #10b981; }
+        .action-item.type-blocker { border-left-color: #ef4444; }
+        .action-item-check {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--text-muted);
+            border-radius: 4px;
+            flex-shrink: 0;
+            margin-top: 2px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .action-item-check:hover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.2);
+        }
+        .action-item-content {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+        }
+        .action-item-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        .action-item-type {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .action-item-type.question { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .action-item-type.completion { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .action-item-type.blocker { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        
+        .action-item.resolved {
+            opacity: 0.5;
+            border-left-color: var(--text-muted) !important;
+        }
+        .action-item.resolved .action-item-content {
+            text-decoration: line-through;
+        }
+        .action-item.resolved .action-item-check {
+            background: var(--text-muted);
+            border-color: var(--text-muted);
+        }
+        .action-item-delete {
+            opacity: 0;
+            background: none;
+            border: none;
+            color: var(--critical);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        .action-item:hover .action-item-delete {
+            opacity: 0.6;
+        }
+        .action-item-delete:hover {
+            opacity: 1 !important;
+            background: rgba(239, 68, 68, 0.15);
+        }
+        
+        /* AI Working Indicator - Compact Icon Edition */
+        .ai-working {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 6px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(236, 72, 153, 0.3));
+            border: 1px solid rgba(139, 92, 246, 0.5);
+            border-radius: 8px;
+            animation: ai-glow 2s ease-in-out infinite;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
+            cursor: default;
+        }
+        .ai-working-dot {
+            width: 6px;
+            height: 6px;
+            background: linear-gradient(135deg, #a78bfa, #f472b6);
+            border-radius: 50%;
+            animation: ai-dot-spin 1s linear infinite, ai-dot-pulse 0.5s ease-in-out infinite alternate;
+            box-shadow: 0 0 10px #a78bfa, 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+        .ai-working-icon {
+            font-size: 0.9rem;
+            line-height: 1;
+        }
+        @keyframes ai-glow {
+            0%, 100% { 
+                box-shadow: 0 0 15px rgba(139, 92, 246, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
+                border-color: rgba(139, 92, 246, 0.5);
+            }
+            50% { 
+                box-shadow: 0 0 25px rgba(139, 92, 246, 0.7), 0 0 40px rgba(236, 72, 153, 0.3), inset 0 0 15px rgba(139, 92, 246, 0.2);
+                border-color: rgba(236, 72, 153, 0.7);
+            }
+        }
+        @keyframes ai-dot-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes ai-dot-pulse {
+            0% { transform: scale(0.8); opacity: 0.7; }
+            100% { transform: scale(1.2); opacity: 1; }
+        }
+        
+        /* Subtle card highlight when AI is working */
+        .card:has(.ai-working) {
+            border-color: rgba(139, 92, 246, 0.4);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+        }
+        
+        /* Modal - Normal Mode */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        
+        .modal-overlay.active { display: flex; }
+        
+        .modal {
+            background: var(--bg-card);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+        
+        /* Modal - Theater Mode */
+        .modal.theater-mode {
+            max-width: 95vw;
+            max-height: 95vh;
+            width: 95vw;
+            height: 95vh;
+        }
+        
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .modal-header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .modal-header-actions button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+        }
+        
+        .modal-header-actions button:hover {
+            background: var(--bg-dark);
+            color: var(--text);
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Task Details Section */
+        .task-details {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .task-details.collapsed {
+            display: none;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .form-group {
+            flex: 1;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .form-group textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+        
+        /* Chat Section */
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 200px;
+        }
+        
+        .theater-mode .chat-section {
+            min-height: 400px;
+        }
+        
+        .chat-header {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .chat-message {
+            background: var(--bg-dark);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            max-width: 85%;
+            align-self: flex-start;
+            border-left: 3px solid var(--border);
+        }
+        
+        .chat-message.from-jarvis {
+            background: rgba(99, 102, 241, 0.15);
+            border-left: 3px solid #6366f1;
+        }
+        
+        .chat-message.from-architect {
+            background: rgba(168, 85, 247, 0.15);
+            border-left: 3px solid #a855f7;
+        }
+        
+        .chat-message.from-security-auditor {
+            background: rgba(239, 68, 68, 0.15);
+            border-left: 3px solid #ef4444;
+        }
+        
+        .chat-message.from-code-reviewer {
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 3px solid #22c55e;
+        }
+        
+        .chat-message.from-ux-manager {
+            background: rgba(236, 72, 153, 0.15);
+            border-left: 3px solid #ec4899;
+        }
+        
+        .chat-message.from-system {
+            background: rgba(100, 116, 139, 0.15);
+            border-left: 3px solid #64748b;
+            font-style: italic;
+        }
+        
+        .chat-message.from-user {
+            background: rgba(0, 180, 216, 0.15);
+            border-left: none;
+            border-right: 3px solid var(--accent);
+            align-self: flex-end;
+            border-radius: 8px;
+        }
+        
+        .chat-message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .chat-message-header .agent {
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        .chat-message.from-user .chat-message-header .agent {
+            color: var(--accent);
+        }
+        
+        .chat-message.from-jarvis .chat-message-header .agent { color: #6366f1; }
+        .chat-message.from-architect .chat-message-header .agent { color: #a855f7; }
+        .chat-message.from-security-auditor .chat-message-header .agent { color: #ef4444; }
+        .chat-message.from-code-reviewer .chat-message-header .agent { color: #22c55e; }
+        .chat-message.from-ux-manager .chat-message-header .agent { color: #ec4899; }
+        .chat-message.from-system .chat-message-header .agent { color: #64748b; }
+        
+        .chat-message-header .time {
+            color: var(--text-muted);
+        }
+        
+        .chat-message-content {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .chat-message-content img {
+            max-width: 100%;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+        }
+        
+        /* Markdown styles for chat */
+        .chat-message-content p {
+            margin: 0 0 0.5rem 0;
+        }
+        .chat-message-content p:last-child {
+            margin-bottom: 0;
+        }
+        .chat-message-content code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+        }
+        .chat-message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        .chat-message-content pre code {
+            background: none;
+            padding: 0;
+        }
+        .chat-message-content ul, .chat-message-content ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+        .chat-message-content li {
+            margin: 0.25rem 0;
+        }
+        .chat-message-content blockquote {
+            border-left: 3px solid var(--accent);
+            margin: 0.5rem 0;
+            padding-left: 0.75rem;
+            color: var(--text-muted);
+        }
+        .chat-message-content table {
+            border-collapse: collapse;
+            margin: 0.5rem 0;
+            width: 100%;
+        }
+        .chat-message-content th, .chat-message-content td {
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .chat-message-content th {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .chat-message-content h1, .chat-message-content h2, .chat-message-content h3 {
+            margin: 0.75rem 0 0.5rem 0;
+            font-weight: 600;
+        }
+        .chat-message-content h1 { font-size: 1.25em; }
+        .chat-message-content h2 { font-size: 1.15em; }
+        .chat-message-content h3 { font-size: 1.05em; }
+        
+        /* Chat Input */
+        .chat-input-area {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        
+        .chat-input-wrapper .attach-btn,
+        .chat-input-wrapper .mention-btn {
+            height: 44px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+        
+        .chat-input-wrapper .btn {
+            height: 44px;
+            padding: 0 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            font-size: 0.875rem;
+        }
+        
+        .chat-input-wrapper .chat-input-box {
+            flex: 1;
+            display: flex;
+            height: 44px;
+        }
+        
+        .chat-input-wrapper .chat-input {
+            height: 44px;
+            min-height: 44px;
+            max-height: 44px;
+            padding: 0.6rem 0.75rem;
+            resize: none;
+            box-sizing: border-box;
+        }
+        
+        .chat-input-box {
+            flex: 1;
+            position: relative;
+        }
+        
+        .chat-input {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            resize: none;
+            min-height: 44px;
+            max-height: 150px;
+        }
+        
+        .theater-mode .chat-input {
+            resize: vertical;
+            max-height: 400px;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .paste-preview {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .paste-preview.active {
+            display: block;
+        }
+        
+        .paste-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 4px;
+        }
+        
+        .paste-preview .remove-btn {
+            display: block;
+            margin-top: 0.5rem;
+            color: var(--critical);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        
+        .attach-btn {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        
+        .attach-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        /* Modal Footer */
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        /* Drag and drop */
+        .card.dragging { opacity: 0.5; }
+        .column.drag-over { background: rgba(0, 180, 216, 0.1); }
+        
+        /* Empty state */
+        .empty-chat {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 2rem;
+        }
+        
+        /* File input hidden */
+        .file-input { display: none; }
+        
+        /* Help Modal Styles */
+        .help-content {
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .help-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .help-section:last-child {
+            border-bottom: none;
+        }
+        
+        .help-section h3 {
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        
+        .help-section p {
+            margin-bottom: 0.5rem;
+        }
+        
+        .help-section ul, .help-section ol {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .help-section li {
+            margin-bottom: 0.35rem;
+        }
+        
+        .help-flow {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.75rem 0;
+            flex-wrap: wrap;
+        }
+        
+        .flow-stage {
+            background: var(--bg-dark);
+            padding: 0.35rem 0.75rem;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .flow-note {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+        
+        .agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .agent-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+        }
+        
+        .agent-item span {
+            font-size: 1.1rem;
+        }
+        
+        .help-note {
+            background: rgba(0, 180, 216, 0.1);
+            border-left: 3px solid var(--accent);
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.9rem;
+        }
+        
+        /* Mention Button */
+        .mention-btn {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        
+        .mention-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        /* Mention Dropdown */
+        .mention-dropdown {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+            margin-bottom: 0.5rem;
+            min-width: 200px;
+            z-index: 50;
+        }
+        
+        .mention-dropdown.active {
+            display: block;
+        }
+        
+        .mention-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .mention-option:hover {
+            background: var(--bg-dark);
+        }
+        
+        .mention-option:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .mention-option:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .chat-input-wrapper {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>&lt;/&gt; <span>DEV</span> Task Board</h1>
+        
+        <!-- Molt Command Bar -->
+        <div class="command-bar" id="commandBar" onclick="expandCommandBar()">
+            <div class="command-bar-collapsed" id="commandBarCollapsed">
+                <span class="command-bar-icon">🤖</span>
+                <span class="command-bar-preview" id="commandBarPreview">Ask Jarvis anything...</span>
+                <button class="stop-icon-btn" id="stopAllBtn" onclick="event.stopPropagation(); stopAllAgents()" title="Stop all agents">■</button>
+            </div>
+            <div class="command-bar-expanded" id="commandBarExpanded">
+                <div class="command-header">
+                    <div class="command-header-title">
+                        <div class="session-selector-wrapper">
+                            <select id="sessionSelector" class="session-selector" onchange="switchSession(this.value)" onclick="event.stopPropagation()">
+                                <option value="main">Jarvis (Main)</option>
+                            </select>
+                            <button class="session-action-btn danger" id="deleteSessionBtn" onclick="event.stopPropagation(); deleteCurrentSession()" title="Close this session">×</button>
+                        </div>
+                        <button class="new-session-btn" onclick="event.stopPropagation(); createNewSession()" title="New session">+ New</button>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="stop-btn" id="stopSessionBtn" onclick="event.stopPropagation(); stopCurrentSession()" title="Stop this session">■</button>
+                        <button class="command-expand-btn" onclick="event.stopPropagation(); toggleCommandFullsize()" title="Expand" id="commandExpandBtn">↗</button>
+                        <button class="command-close-btn" onclick="event.stopPropagation(); collapseCommandBar()">×</button>
+                    </div>
+                </div>
+                <!-- Native Jarvis Chat -->
+                <div class="jarvis-chat-container" id="jarvisChatContainer">
+                    <div class="jarvis-chat-messages" id="jarvisChatMessages">
+                        <!-- Messages rendered here -->
+                    </div>
+                    <div class="jarvis-chat-input-area">
+                        <div class="jarvis-typing-indicator" id="jarvisTyping" style="display: none;">
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-text">Jarvis is thinking...</span>
+                        </div>
+                        <div class="command-paste-preview" id="commandPastePreview"></div>
+                        <div class="jarvis-input-row">
+                            <button class="attach-btn" onclick="document.getElementById('commandFileInput').click()" title="Attach file" style="height: 44px; min-width: 44px;">📎</button>
+                            <input type="file" id="commandFileInput" class="file-input" accept="image/*,.pdf,.txt,.md,.json,.csv" onchange="handleCommandFileSelect(event)" multiple>
+                            <input 
+                                type="text" 
+                                id="jarvisChatInput" 
+                                class="jarvis-chat-input" 
+                                placeholder="Ask Jarvis anything... (Ctrl+V to paste images)"
+                                onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendJarvisMessage(); }"
+                            />
+                            <button class="jarvis-send-btn" onclick="sendJarvisMessage()" id="jarvisSendBtn">
+                                <span>→</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="header-actions">
+            <div class="agent-legend" id="agentLegend"></div>
+            <select class="filter-select" id="filterAgent">
+                <option value="">All Agents</option>
+            </select>
+            <button class="btn" onclick="openNewTaskModal()">+ New Task</button>
+            <button class="btn btn-secondary" onclick="openHelpModal()" title="Help">❓</button>
+        </div>
+    </header>
+    
+    <div class="board" id="board"></div>
+    
+    <!-- Command Bar Overlay -->
+    <div class="command-bar-overlay" id="commandBarOverlay" onclick="collapseCommandBar()"></div>
+    
+    <!-- Confirmation Modal -->
+    <div class="confirm-modal" id="confirmModal">
+        <div class="confirm-dialog">
+            <h3 id="confirmTitle">Confirm</h3>
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="confirm-dialog-actions">
+                <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="btn-confirm" id="confirmBtn" onclick="executeConfirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input Modal (for naming sessions) -->
+    <div class="confirm-modal" id="renameModal">
+        <div class="confirm-dialog">
+            <h3 id="renameModalTitle">Session Name</h3>
+            <input type="text" id="renameInput" style="width: 100%; padding: 0.5rem; margin: 0.5rem 0 1rem 0; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-dark); color: var(--text); font-size: 0.9rem;" onkeydown="if(event.key === 'Enter') executeRename()">
+            <div class="confirm-dialog-actions">
+                <button class="btn-cancel" onclick="closeRenameModal()">Cancel</button>
+                <button class="btn-confirm" id="renameModalBtn" onclick="executeRename()">Create</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal" style="max-width: 800px; max-height: 90vh;">
+            <div class="modal-header">
+                <h2>Task Board Help</h2>
+                <div class="modal-header-actions">
+                    <button onclick="closeHelpModal()">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" style="overflow-y: auto; padding: 1.5rem;">
+                <div class="help-content">
+                    <section class="help-section">
+                        <h3>Overview</h3>
+                        <p>The Jarvis Task Board is a multi-agent project management system. Tasks flow through stages while AI agents collaborate to complete work under human supervision.</p>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Workflow Stages</h3>
+                        <div class="help-flow">
+                            <span class="flow-stage">Backlog</span> → 
+                            <span class="flow-stage">In Progress</span> → 
+                            <span class="flow-stage">Review</span> → 
+                            <span class="flow-stage">Done</span>
+                        </div>
+                        <p class="flow-note">↳ <strong>Blocked</strong> can branch from In Progress when waiting on info</p>
+                        <ul>
+                            <li><strong>Backlog:</strong> Tasks waiting to be started</li>
+                            <li><strong>In Progress:</strong> Agent actively working (auto-spawns AI session)</li>
+                            <li><strong>Review:</strong> Work complete, awaiting User's approval</li>
+                            <li><strong>Done:</strong> Only User can move tasks here (final approval)</li>
+                            <li><strong>Blocked:</strong> Waiting on external input or decision</li>
+                        </ul>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>🤖 Agents</h3>
+                        <div class="agent-list">
+                            <div class="agent-item">🤖 <strong>Jarvis</strong> — Main coordinator, handles command bar chat</div>
+                            <div class="agent-item">🏛️ <strong>Architect</strong> — System design, patterns, scalability</div>
+                            <div class="agent-item">🔒 <strong>Security Auditor</strong> — SOC2, HIPAA, CIS compliance</div>
+                            <div class="agent-item">📋 <strong>Code Reviewer</strong> — Code quality, best practices</div>
+                            <div class="agent-item">🎨 <strong>UX Manager</strong> — User flows, UI consistency</div>
+                            <div class="agent-item">👤 <strong>Alberto</strong> — Human supervisor (you!)</div>
+                        </div>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>⚡ Auto-Spawn: How Agents Activate</h3>
+                        <ol>
+                            <li>Assign a task to an agent (e.g., Architect)</li>
+                            <li>Drag the card to <strong>In Progress</strong></li>
+                            <li>The agent's AI session spawns automatically</li>
+                            <li>Agent posts updates as comments on the card</li>
+                            <li>Agent moves to Review when done</li>
+                            <li>You review and move to Done (or request changes)</li>
+                        </ol>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Session Persistence</h3>
+                        <p>Each agent maintains a <strong>persistent session</strong> per task:</p>
+                        <ul>
+                            <li>Sessions stay alive while task is In Progress or Review</li>
+                            <li>You can have back-and-forth conversations via comments</li>
+                            <li>Context is preserved — no cold starts for follow-ups</li>
+                            <li>Sessions terminate when task moves to Done</li>
+                        </ul>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Multi-Agent Collaboration</h3>
+                        <p>To bring additional agents into a conversation:</p>
+                        <ol>
+                            <li>Open a card and go to the chat section</li>
+                            <li>Use the <strong>@mention</strong> button to tag agents</li>
+                            <li>Tagged agents receive a notification and can respond</li>
+                            <li>Each agent maintains their own session context</li>
+                        </ol>
+                        <p class="help-note">Example: Architect working on a feature can @Security Auditor for a quick review without creating a separate task.</p>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Action Items</h3>
+                        <p>Cards can have action items (shown as notification badges):</p>
+                        <ul>
+                            <li><span style="color: #f59e0b;">Question</span> — Agent needs clarification</li>
+                            <li><span style="color: #10b981;">Completion</span> — Auto-created when moved to Review</li>
+                            <li><span style="color: #ef4444;">Blocker</span> — Auto-created when moved to Blocked</li>
+                        </ul>
+                        <p>Click the checkbox to resolve an action item, or click × to delete it.</p>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Command Bar</h3>
+                        <p>Click the search bar in the header to open a direct Chat with Jarvis:</p>
+                        <ul>
+                            <li>Ask questions about the project</li>
+                            <li>Give high-level instructions</li>
+                            <li>Paste images or files (Ctrl+V)</li>
+                            <li>Click ↗ to expand to full size</li>
+                        </ul>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>👁️ Visual Indicators</h3>
+                        <ul>
+                            <li><strong>Glowing card</strong> — AI agent actively working (consuming tokens)</li>
+                            <li><strong>Red badge</strong> — Open action items needing attention</li>
+                            <li><strong>Agent colors</strong> — Each agent has a distinct color tag</li>
+                            <li><strong>Priority colors</strong> — Critical (red), High (orange), Medium (yellow), Low (green)</li>
+                        </ul>
+                    </section>
+                    
+                    <section class="help-section">
+                        <h3>Security</h3>
+                        <ul>
+                            <li>All agent sessions run with guardrails (filesystem boundaries, forbidden actions)</li>
+                            <li>Agents cannot access paths outside authorized directories</li>
+                            <li>External API calls require approval via action items</li>
+                            <li>Only User can finalize tasks (move to Done)</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Task Modal -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal" id="modalContainer">
+            <div class="modal-header">
+                <h2 id="modalTitle">Task</h2>
+                <div class="modal-header-actions">
+                    <button onclick="toggleTheaterMode()" title="Toggle Theater Mode" id="theaterBtn">⛶</button>
+                    <button onclick="closeModal()" title="Close">&times;</button>
+                </div>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Task Details (collapsible in theater mode) -->
+                <div class="task-details" id="taskDetails">
+                    <form id="taskForm" onsubmit="saveTask(event)">
+                        <input type="hidden" id="taskId">
+                        
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label>Title</label>
+                            <input type="text" id="taskTitleInput" required>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label>Description</label>
+                            <textarea id="taskDescription" rows="2"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="taskStatus"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority</label>
+                                <select id="taskPriority"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Assigned To</label>
+                                <select id="taskAgent"></select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Due Date</label>
+                                <input type="date" id="taskDueDate">
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                                <button type="submit" class="btn" style="flex:1;">Save Changes</button>
+                                <button type="button" class="btn btn-danger" id="deleteBtn" onclick="deleteTask()">Delete</button>
+                            </div>
+                        </div>
+                        
+                        <div id="sourceInfo" style="display:none; margin-top: 0.75rem; padding: 0.5rem; background: var(--bg-dark); border-radius: 6px; font-size: 0.75rem;">
+                            <span style="color: var(--text-muted);">Source:</span>
+                            <a href="#" id="sourceLink" style="color: var(--accent); text-decoration: none;" onclick="openSourceFile()">
+                                <span id="sourceRefText"></span>
+                            </a>
+                        </div>
+                    </form>
+                    
+                    <!-- Action Items Section -->
+                    <div id="actionItemsSection" style="margin-top: 1rem; display: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 600; color: var(--text-primary);">Action Items</span>
+                            <span id="actionItemsCount" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+                        </div>
+                        <div id="actionItemsList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                    </div>
+                </div>
+                
+                <!-- Chat Section -->
+                <div class="chat-section" id="chatSection">
+                    <div class="chat-header">
+                        <span>Conversation</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="stop-btn-mini" id="stopAgentBtn" onclick="stopTaskAgent()" title="Stop agent">■</button>
+                            <button class="btn btn-secondary" onclick="toggleTaskDetails()" id="toggleDetailsBtn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Hide Details</button>
+                        </div>
+                    </div>
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="empty-chat">No messages yet. Start the conversation!</div>
+                    </div>
+                    <div class="chat-input-area">
+                        <div class="paste-preview" id="pastePreview">
+                            <img id="pastePreviewImg" src="">
+                            <button class="remove-btn" onclick="clearPastedImage()">× Remove image</button>
+                        </div>
+                        <div class="chat-input-wrapper">
+                            <div class="mention-dropdown" id="mentionDropdown"></div>
+                            <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach file">📎</button>
+                            <input type="file" id="fileInput" class="file-input" accept="image/*,.pdf,.txt,.md,.json,.csv,.log" onchange="handleFileSelect(event)">
+                            <button class="mention-btn" onclick="toggleMentionDropdown(event)" title="Tag an agent">@</button>
+                            <div class="chat-input-box">
+                                <textarea class="chat-input" id="chatInput" placeholder="Type a message... (Ctrl+V to paste image)" rows="1" onkeydown="handleChatKeydown(event)"></textarea>
+                            </div>
+                            <button class="btn" onclick="sendChatMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';
+        let config = { agents: [], statuses: [], priorities: [] };
+        let tasks = [];
+        let comments = {}; // taskId -> comments array
+        let actionItems = {}; // taskId -> action items array
+        let pastedImageData = null;
+        let theaterMode = false;
+        let detailsVisible = true;
+        
+        // Agent icons mapping (main agent added dynamically from config)
+        const AGENT_ICONS = {
+            'Architect': '🏛️',
+            'Security Auditor': '🔒',
+            'Code Reviewer': '📋',
+            'UX Manager': '🎨',
+            'User': '👤',
+            'Unassigned': '○'
+        };
+        
+        function getAgentIcon(agent) {
+            return AGENT_ICONS[agent] || '○';
+        }
+        
+        // Timezone-aware date/time formatting (uses browser's detected timezone)
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleString(undefined, {
+                timeZone: userTimezone,
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function formatTime(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleTimeString(undefined, {
+                timeZone: userTimezone,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function formatTimeNow() {
+            return new Date().toLocaleTimeString(undefined, {
+                timeZone: userTimezone,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // Initialize
+        async function init() {
+            config = await fetch(`${API}/api/config`).then(r => r.json());
+            applyBranding();
+            populateSelects();
+            await loadTasks();
+            renderBoard();
+            setupPasteHandler();
+            setupCommandPasteHandler();
+            // Pre-load sessions and chat history so it's ready when command bar opens
+            loadSessions();
+            loadJarvisHistory('main');
+        }
+        
+        function applyBranding() {
+            // Apply branding from config to DOM elements
+            const b = config.branding || {};
+            const mainAgent = b.mainAgentName || 'Assistant';
+            const mainEmoji = b.mainAgentEmoji || '🤖';
+            const humanLabel = b.humanSupervisorLabel || 'User';
+            
+            // Update placeholder text
+            const preview = document.getElementById('commandBarPreview');
+            if (preview) preview.textContent = `Ask ${mainAgent} anything...`;
+            
+            const chatInput = document.getElementById('jarvisChatInput');
+            if (chatInput) chatInput.placeholder = `Ask ${mainAgent} anything... (Ctrl+V to paste images)`;
+            
+            // Update typing indicator
+            const typingText = document.querySelector('.typing-text');
+            if (typingText) typingText.textContent = `${mainAgent} is thinking...`;
+            
+            // Update session selector default option
+            const sessionSelector = document.getElementById('sessionSelector');
+            if (sessionSelector && sessionSelector.options[0]) {
+                sessionSelector.options[0].textContent = `${mainAgent} (Main)`;
+            }
+            
+            // Update AGENT_ICONS with main agent
+            if (window.AGENT_ICONS) {
+                AGENT_ICONS[mainAgent] = mainEmoji;
+            }
+            
+            // Store branding globally for use elsewhere
+            window.BRANDING = b;
+        }
+        
+        function populateSelects() {
+            const filterAgent = document.getElementById('filterAgent');
+            config.agents.forEach(a => {
+                filterAgent.innerHTML += `<option value="${a}">${getAgentIcon(a)} ${a}</option>`;
+            });
+            
+            // Populate legend (skip Unassigned)
+            const legend = document.getElementById('agentLegend');
+            config.agents.filter(a => a !== 'Unassigned').forEach(a => {
+                legend.innerHTML += `<div class="legend-item" title="${a}"><span class="icon">${getAgentIcon(a)}</span><span class="name">${a}</span></div>`;
+            });
+            
+            const statusSelect = document.getElementById('taskStatus');
+            const prioritySelect = document.getElementById('taskPriority');
+            const agentSelect = document.getElementById('taskAgent');
+            
+            config.statuses.forEach(s => {
+                statusSelect.innerHTML += `<option value="${s}">${s}</option>`;
+            });
+            
+            config.priorities.forEach(p => {
+                prioritySelect.innerHTML += `<option value="${p}">${p}</option>`;
+            });
+            
+            config.agents.forEach(a => {
+                agentSelect.innerHTML += `<option value="${a}">${getAgentIcon(a)} ${a}</option>`;
+            });
+        }
+        
+        async function loadTasks() {
+            const agent = document.getElementById('filterAgent').value;
+            const url = agent ? `${API}/api/tasks?agent=${agent}` : `${API}/api/tasks`;
+            tasks = await fetch(url).then(r => r.json());
+            
+            // Load comments and action items
+            for (const task of tasks) {
+                const taskComments = await fetch(`${API}/api/tasks/${task.id}/comments`).then(r => r.json());
+                comments[task.id] = taskComments;
+                const taskActionItems = await fetch(`${API}/api/tasks/${task.id}/action-items`).then(r => r.json());
+                actionItems[task.id] = taskActionItems;
+            }
+        }
+        
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            config.statuses.forEach(status => {
+                const statusTasks = tasks.filter(t => t.status === status);
+                
+                const column = document.createElement('div');
+                column.className = 'column';
+                column.dataset.status = status;
+                
+                column.innerHTML = `
+                    <div class="column-header">
+                        <span>${status}</span>
+                        <span class="count">${statusTasks.length}</span>
+                    </div>
+                    <div class="column-cards" 
+                         ondragover="handleDragOver(event)" 
+                         ondrop="handleDrop(event, '${status}')">
+                        ${statusTasks.map(t => renderCard(t)).join('')}
+                    </div>
+                `;
+                
+                board.appendChild(column);
+            });
+        }
+        
+        function renderCard(task) {
+            const taskActionItems = actionItems[task.id] || [];
+            const openCount = taskActionItems.filter(item => !item.resolved).length;
+            const bubbleHtml = openCount > 0 ? `<div class="notification-bubble">${openCount}</div>` : '';
+            const aiWorkingHtml = task.working_agent ? `<div class="ai-working" title="${task.working_agent} is working"><span class="ai-working-dot"></span><span class="ai-working-icon">${getAgentIcon(task.working_agent)}</span></div>` : '';
+            
+            return `
+                <div class="card" 
+                     draggable="true" 
+                     ondragstart="handleDragStart(event, ${task.id})"
+                     ondragend="handleDragEnd(event)"
+                     onclick="openEditTaskModal(${task.id})">
+                    ${bubbleHtml}
+                    ${aiWorkingHtml}
+                    <div class="card-title">${escapeHtml(task.title)}</div>
+                    <div class="card-meta">
+                        <span class="tag priority-${task.priority}">${task.priority}</span>
+                        <span class="tag agent-${task.agent.replace(/\s+/g, '-')}">${task.agent}</span>
+                        ${task.due_date ? `<span class="tag">${task.due_date}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Drag and Drop
+        let draggedTaskId = null;
+        
+        function handleDragStart(event, taskId) {
+            draggedTaskId = taskId;
+            event.target.classList.add('dragging');
+        }
+        
+        function handleDragEnd(event) {
+            event.target.classList.remove('dragging');
+            document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+        }
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.closest('.column').classList.add('drag-over');
+        }
+        
+        async function handleDrop(event, newStatus) {
+            event.preventDefault();
+            document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+            
+            if (draggedTaskId) {
+                // Always pass agent=User for UI actions (he's the one using the board)
+                await fetch(`${API}/api/tasks/${draggedTaskId}/move?status=${encodeURIComponent(newStatus)}&agent=User`, { method: 'POST' });
+                await loadTasks();
+                renderBoard();
+            }
+        }
+        
+        // Modal
+        function openNewTaskModal() {
+            // Clear everything explicitly - full blank slate
+            document.getElementById('modalTitle').textContent = 'New Task';
+            document.getElementById('taskId').value = '';
+            document.getElementById('taskTitleInput').value = '';
+            document.getElementById('taskDescription').value = '';
+            document.getElementById('taskStatus').value = 'Backlog';
+            document.getElementById('taskPriority').value = 'Medium';
+            document.getElementById('taskAgent').value = 'Unassigned';
+            document.getElementById('taskDueDate').value = '';
+            
+            // Hide elements not relevant for new tasks
+            document.getElementById('deleteBtn').style.display = 'none';
+            document.getElementById('chatSection').style.display = 'none';
+            document.getElementById('sourceInfo').style.display = 'none';
+            document.getElementById('actionItemsSection').style.display = 'none';
+            document.getElementById('actionItemsList').innerHTML = '';
+            
+            // Reset modal state
+            document.getElementById('taskDetails').classList.remove('collapsed');
+            detailsVisible = true;
+            document.getElementById('toggleDetailsBtn').textContent = 'Hide Details';
+            theaterMode = false;
+            document.getElementById('modalContainer').classList.remove('theater-mode');
+            
+            // Clear any pasted images
+            clearPastedImage();
+            
+            // Show modal
+            document.getElementById('taskModal').classList.add('active');
+        }
+        
+        async function openEditTaskModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            document.getElementById('modalTitle').textContent = task.title;
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskTitleInput').value = task.title;
+            document.getElementById('taskDescription').value = task.description || '';
+            document.getElementById('taskStatus').value = task.status;
+            document.getElementById('taskPriority').value = task.priority;
+            document.getElementById('taskAgent').value = task.agent;
+            document.getElementById('taskDueDate').value = task.due_date || '';
+            document.getElementById('deleteBtn').style.display = 'block';
+            document.getElementById('chatSection').style.display = 'flex';
+            document.getElementById('taskDetails').classList.remove('collapsed');
+            detailsVisible = true;
+            document.getElementById('toggleDetailsBtn').textContent = 'Hide Details';
+            document.getElementById('taskModal').classList.add('active');
+            
+            // Show source info if available
+            const sourceInfo = document.getElementById('sourceInfo');
+            if (task.source_file && task.source_ref) {
+                document.getElementById('sourceRefText').textContent = task.source_ref;
+                sourceInfo.dataset.file = task.source_file;
+                sourceInfo.style.display = 'block';
+            } else {
+                sourceInfo.style.display = 'none';
+            }
+            
+            // Update stop button tooltip with agent name if known
+            const stopAgentBtn = document.getElementById('stopAgentBtn');
+            stopAgentBtn.title = task.working_agent ? `Stop ${task.working_agent}` : 'Stop agent';
+            
+            await loadAndRenderComments(taskId);
+            await loadAndRenderActionItems(taskId);
+        }
+        
+        function openSourceFile() {
+            const sourceInfo = document.getElementById('sourceInfo');
+            const file = sourceInfo.dataset.file;
+            if (file) {
+                navigator.clipboard.writeText(file).then(() => {
+                    alert('Source file path copied to clipboard:\n' + file);
+                });
+            }
+        }
+        
+        async function loadAndRenderComments(taskId) {
+            const taskComments = await fetch(`${API}/api/tasks/${taskId}/comments`).then(r => r.json());
+            comments[taskId] = taskComments;
+            
+            const container = document.getElementById('chatMessages');
+            
+            if (taskComments.length === 0) {
+                container.innerHTML = '<div class="empty-chat">No messages yet. Start the conversation!</div>';
+            } else {
+                container.innerHTML = taskComments.map(c => `
+                    <div class="chat-message from-${c.agent.toLowerCase().replace(' ', '-')}">
+                        <div class="chat-message-header">
+                            <span class="agent">${escapeHtml(c.agent)}</span>
+                            <span class="time">${formatDateTime(c.created_at)}</span>
+                        </div>
+                        <div class="chat-message-content">${formatMessageContent(c.content)}</div>
+                    </div>
+                `).join('');
+            }
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function loadAndRenderActionItems(taskId) {
+            // Load both open and resolved items
+            const openItems = await fetch(`${API}/api/tasks/${taskId}/action-items`).then(r => r.json());
+            const resolvedItems = await fetch(`${API}/api/tasks/${taskId}/action-items?resolved=true`).then(r => r.json());
+            const allItems = [...openItems, ...resolvedItems];
+            actionItems[taskId] = openItems; // Keep only open items for bubble count
+            
+            const section = document.getElementById('actionItemsSection');
+            const list = document.getElementById('actionItemsList');
+            const countEl = document.getElementById('actionItemsCount');
+            
+            if (allItems.length === 0) {
+                section.style.display = 'none';
+            } else {
+                section.style.display = 'block';
+                const openCount = openItems.length;
+                countEl.textContent = openCount > 0 ? `${openCount} open` : 'all done';
+                list.innerHTML = allItems.map(item => `
+                    <div class="action-item type-${item.item_type} ${item.resolved ? 'resolved' : ''}" onclick="quoteActionItem(${item.id}, '${escapeHtml(item.content).replace(/'/g, "\\'")}')">
+                        <div class="action-item-check" onclick="event.stopPropagation(); ${item.resolved ? '' : `resolveActionItem(${item.id})`}" title="${item.resolved ? 'Resolved' : 'Mark as resolved'}"></div>
+                        <div style="flex: 1;">
+                            <div class="action-item-content">${escapeHtml(item.content)}</div>
+                            <div class="action-item-meta">
+                                <span class="action-item-type ${item.item_type}">${item.item_type}</span>
+                                — ${item.agent} — ${formatDateTime(item.created_at)}
+                                ${item.resolved ? ' — ? resolved' : ''}
+                            </div>
+                        </div>
+                        <button class="action-item-delete" onclick="event.stopPropagation(); deleteActionItem(${item.id})" title="Delete">×</button>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        function quoteActionItem(itemId, content) {
+            const chatInput = document.getElementById('chatInput');
+            chatInput.value = `> Re: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"\n\n`;
+            chatInput.focus();
+            chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+        }
+        
+        async function resolveActionItem(itemId) {
+            await fetch(`${API}/api/action-items/${itemId}/resolve`, { method: 'POST' });
+            const taskId = parseInt(document.getElementById('taskId').value);
+            await loadAndRenderActionItems(taskId);
+            await loadTasks();
+            renderBoard();
+        }
+        
+        async function deleteActionItem(itemId) {
+            if (!confirm('Delete this action item?')) return;
+            await fetch(`${API}/api/action-items/${itemId}`, { method: 'DELETE' });
+            const taskId = parseInt(document.getElementById('taskId').value);
+            await loadAndRenderActionItems(taskId);
+            await loadTasks();
+            renderBoard();
+        }
+        
+        function formatMessageContent(content) {
+            // Check if content is an image (base64 or URL)
+            if (content.startsWith('data:image') || content.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                return `<img src="${content}" alt="Attached image">`;
+            }
+            // Check for embedded image in content
+            const imgMatch = content.match(/\[IMAGE:(.*?)\]/);
+            if (imgMatch) {
+                const text = content.replace(/\[IMAGE:.*?\]/, '').trim();
+                const parsedText = text ? parseMarkdown(text) : '';
+                return `${parsedText}${text ? '<br>' : ''}<img src="${imgMatch[1]}" alt="Attached image">`;
+            }
+            // Parse markdown
+            return parseMarkdown(content);
+        }
+        
+        function parseMarkdown(content) {
+            // Use marked.js if available, otherwise fallback to basic formatting
+            if (typeof marked !== 'undefined') {
+                // Configure marked for safe rendering
+                marked.setOptions({
+                    breaks: true,  // Convert \n to <br>
+                    gfm: true,     // GitHub Flavored Markdown
+                    sanitize: false // We'll handle sanitization
+                });
+                // Parse and return - marked handles escaping
+                return marked.parse(content);
+            }
+            // Fallback: basic formatting if marked isn't loaded
+            return escapeHtml(content)
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+        
+        function closeModal() {
+            document.getElementById('taskModal').classList.remove('active');
+            document.getElementById('modalContainer').classList.remove('theater-mode');
+            theaterMode = false;
+            clearPastedImage();
+        }
+        
+        function toggleTheaterMode() {
+            theaterMode = !theaterMode;
+            const modal = document.getElementById('modalContainer');
+            const btn = document.getElementById('theaterBtn');
+            const details = document.getElementById('taskDetails');
+            const toggleBtn = document.getElementById('toggleDetailsBtn');
+            
+            if (theaterMode) {
+                modal.classList.add('theater-mode');
+                btn.textContent = '⛶';
+                btn.title = 'Exit Theater Mode';
+                // Auto-hide details in theater mode
+                details.classList.add('collapsed');
+                detailsVisible = false;
+                toggleBtn.textContent = 'Show Details';
+            } else {
+                modal.classList.remove('theater-mode');
+                btn.textContent = '⛶';
+                btn.title = 'Enter Theater Mode';
+                // Auto-show details when exiting theater mode
+                details.classList.remove('collapsed');
+                detailsVisible = true;
+                toggleBtn.textContent = 'Hide Details';
+            }
+        }
+        
+        function toggleTaskDetails() {
+            detailsVisible = !detailsVisible;
+            const details = document.getElementById('taskDetails');
+            const btn = document.getElementById('toggleDetailsBtn');
+            
+            if (detailsVisible) {
+                details.classList.remove('collapsed');
+                btn.textContent = 'Hide Details';
+            } else {
+                details.classList.add('collapsed');
+                btn.textContent = 'Show Details';
+            }
+        }
+        
+        async function saveTask(event) {
+            event.preventDefault();
+            
+            const taskId = document.getElementById('taskId').value;
+            const data = {
+                title: document.getElementById('taskTitleInput').value,
+                description: document.getElementById('taskDescription').value,
+                status: document.getElementById('taskStatus').value,
+                priority: document.getElementById('taskPriority').value,
+                agent: document.getElementById('taskAgent').value,
+                due_date: document.getElementById('taskDueDate').value || null,
+            };
+            
+            if (taskId) {
+                await fetch(`${API}/api/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } else {
+                await fetch(`${API}/api/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                closeModal();
+            }
+            
+            await loadTasks();
+            renderBoard();
+            
+            // Update modal title
+            document.getElementById('modalTitle').textContent = data.title;
+        }
+        
+        async function deleteTask() {
+            const taskId = document.getElementById('taskId').value;
+            if (taskId && confirm('Delete this task?')) {
+                await fetch(`${API}/api/tasks/${taskId}`, { method: 'DELETE' });
+                closeModal();
+                await loadTasks();
+                renderBoard();
+            }
+        }
+        
+        // Chat
+        async function sendChatMessage() {
+            const taskId = document.getElementById('taskId').value;
+            const input = document.getElementById('chatInput');
+            let content = input.value.trim();
+            
+            if (!content && !pastedImageData && !attachedFile) return;
+            
+            // If there's a pasted image, include it
+            if (pastedImageData) {
+                content = content ? `${content}\n[IMAGE:${pastedImageData}]` : `[IMAGE:${pastedImageData}]`;
+            }
+            
+            // If there's an attached file, include it as a code block
+            if (attachedFile) {
+                const fileHeader = `\n\n**📎 Attached file: ${attachedFile.name}**\n`;
+                const fileContent = '```\n' + attachedFile.content + '\n```';
+                content = content ? `${content}${fileHeader}${fileContent}` : `${fileHeader}${fileContent}`;
+            }
+            
+            await fetch(`${API}/api/tasks/${taskId}/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent: 'User', content })
+            });
+            
+            input.value = '';
+            clearPastedImage();
+            await loadAndRenderComments(taskId);
+        }
+        
+        function handleChatKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendChatMessage();
+            }
+        }
+        
+        // Paste handler for images
+        function setupPasteHandler() {
+            document.getElementById('chatInput').addEventListener('paste', handlePaste);
+        }
+        
+        function handlePaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    event.preventDefault();
+                    const file = item.getAsFile();
+                    processImageFile(file);
+                    break;
+                }
+            }
+        }
+        
+        let attachedFile = null;  // Store file info for non-image files
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (file.type.startsWith('image/')) {
+                processImageFile(file);
+            } else {
+                // Handle non-image files (text, json, etc.)
+                processTextFile(file);
+            }
+        }
+        
+        function processImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                pastedImageData = e.target.result;
+                attachedFile = null;
+                document.getElementById('pastePreviewImg').src = pastedImageData;
+                document.getElementById('pastePreviewImg').style.display = 'block';
+                document.getElementById('filePreviewName').style.display = 'none';
+                document.getElementById('pastePreview').classList.add('active');
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function processTextFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                attachedFile = {
+                    name: file.name,
+                    type: file.type,
+                    content: e.target.result
+                };
+                pastedImageData = null;
+                document.getElementById('pastePreviewImg').style.display = 'none';
+                let fileNameEl = document.getElementById('filePreviewName');
+                if (!fileNameEl) {
+                    // Create file name preview element if it doesn't exist
+                    fileNameEl = document.createElement('div');
+                    fileNameEl.id = 'filePreviewName';
+                    fileNameEl.style.cssText = 'padding: 0.5rem; background: var(--bg-dark); border-radius: 4px; font-size: 0.85rem;';
+                    document.getElementById('pastePreview').insertBefore(fileNameEl, document.getElementById('pastePreviewImg'));
+                }
+                fileNameEl.textContent = `📎 ${file.name}`;
+                fileNameEl.style.display = 'block';
+                document.getElementById('pastePreview').classList.add('active');
+            };
+            reader.readAsText(file);
+        }
+        
+        function clearPastedImage() {
+            pastedImageData = null;
+            attachedFile = null;
+            document.getElementById('pastePreview').classList.remove('active');
+            document.getElementById('pastePreviewImg').src = '';
+            document.getElementById('pastePreviewImg').style.display = 'block';
+            const fileNameEl = document.getElementById('filePreviewName');
+            if (fileNameEl) fileNameEl.style.display = 'none';
+            document.getElementById('fileInput').value = '';
+        }
+        
+        // Filter change
+        document.getElementById('filterAgent').addEventListener('change', async () => {
+            await loadTasks();
+            renderBoard();
+        });
+        
+        // WebSocket for live updates
+        let ws = null;
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                console.log('Live updates connected');
+                setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send('ping');
+                    }
+                }, 30000);
+            };
+            
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Live update:', data.type);
+                
+                if (data.type === 'task_created' || data.type === 'task_updated' || data.type === 'task_deleted') {
+                    await loadTasks();
+                    renderBoard();
+                }
+                
+                if (data.type === 'comment_added') {
+                    const openTaskId = document.getElementById('taskId').value;
+                    if (openTaskId && parseInt(openTaskId) === data.task_id) {
+                        await loadAndRenderComments(data.task_id);
+                    }
+                }
+                
+                if (data.type === 'action_item_added' || data.type === 'action_item_resolved' || data.type === 'action_item_deleted') {
+                    const openTaskId = document.getElementById('taskId').value;
+                    if (openTaskId && parseInt(openTaskId) === data.task_id) {
+                        await loadAndRenderActionItems(data.task_id);
+                    }
+                    // Refresh board to update notification bubbles
+                    await loadTasks();
+                    renderBoard();
+                }
+                
+                if (data.type === 'work_started' || data.type === 'work_stopped') {
+                    // Refresh board to show/hide AI working indicator
+                    await loadTasks();
+                    renderBoard();
+                }
+                
+                if (data.type === 'session_deleted') {
+                    // Remove deleted session from local state immediately
+                    const deletedKey = data.session_key;
+                    activeSessions = activeSessions.filter(s => s.key !== deletedKey);
+                    delete jarvisHistoryBySession[deletedKey];
+                    
+                    // If we're viewing the deleted session, switch to main
+                    if (currentSessionKey === deletedKey) {
+                        currentSessionKey = 'main';
+                        jarvisChatHistory = jarvisHistoryBySession['main'] || [];
+                        renderJarvisChat();
+                    }
+                    
+                    updateSessionSelector();
+                    updateDeleteButtonVisibility();
+                    console.log('Session deleted via WebSocket:', deletedKey);
+                }
+                
+                if (data.type === 'command_bar_message') {
+                    // Proactive Jarvis message via WebSocket
+                    handleJarvisWebSocketMessage(data.message);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket closed, reconnecting in 3s...');
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                ws.close();
+            };
+        }
+        
+        // Command Bar - Jarvis Chat (via Backend API)
+        let commandBarExpanded = false;
+        let commandFullsize = false;
+        let jarvisChatHistory = [];
+        let jarvisHistoryBySession = {}; // session_key -> messages[]
+        let lastJarvisMessage = 'Ask anything...';  // Updated by applyBranding()
+        let jarvisLoading = false;
+        let commandAttachments = []; // {type, data, filename}
+        let activeSessions = [];
+        let currentSessionKey = 'main';
+        
+        // Load chat history from backend for a specific session
+        async function loadJarvisHistory(sessionKey = null) {
+            const session = sessionKey || currentSessionKey;
+            try {
+                const res = await fetch(`/api/jarvis/history?session=${encodeURIComponent(session)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const messages = (data.history || []).map(msg => ({
+                        id: msg.id,
+                        session_key: msg.session_key,
+                        role: msg.role,
+                        content: msg.content,
+                        attachments: msg.attachments || null,
+                        time: msg.timestamp ? formatTime(msg.timestamp) : ''
+                    }));
+                    
+                    // Cache history per session
+                    jarvisHistoryBySession[session] = messages;
+                    
+                    // If this is the current session, update display
+                    if (session === currentSessionKey) {
+                        jarvisChatHistory = messages;
+                        renderJarvisChat();
+                        // Update preview from last assistant message
+                        const lastAssistant = [...jarvisChatHistory].reverse().find(m => m.role === 'assistant');
+                        if (lastAssistant) {
+                            lastJarvisMessage = lastAssistant.content.length > 60 
+                                ? lastAssistant.content.substring(0, 60) + '...' 
+                                : lastAssistant.content;
+                            updateCommandBarPreview();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load Jarvis history:', e);
+            }
+        }
+        
+        // Load available sessions from Clawdbot
+        async function loadSessions() {
+            try {
+                const res = await fetch('/api/sessions');
+                if (res.ok) {
+                    const data = await res.json();
+                    activeSessions = data.sessions || [];
+                    updateSessionSelector();
+                }
+            } catch (e) {
+                console.error('Failed to load sessions:', e);
+            }
+        }
+        
+        function updateSessionSelector() {
+            const selector = document.getElementById('sessionSelector');
+            if (!selector) return;
+            
+            const currentValue = selector.value;
+            
+            // Build options from API response (main session comes from API too)
+            let options = '';
+            for (const session of activeSessions) {
+                options += `<option value="${escapeHtml(session.key)}">${escapeHtml(session.label)}</option>`;
+            }
+            
+            // Fallback if no sessions (shouldn't happen)
+            if (!options) {
+                options = '<option value="main">Jarvis (Main)</option>';
+            }
+            
+            selector.innerHTML = options;
+            
+            // Restore selection if still valid
+            if ([...selector.options].some(o => o.value === currentValue)) {
+                selector.value = currentValue;
+            } else {
+                // Default to first option (should be main)
+                selector.value = selector.options[0]?.value || 'main';
+                currentSessionKey = selector.value;
+            }
+        }
+        
+        async function switchSession(sessionKey) {
+            currentSessionKey = sessionKey;
+            updateDeleteButtonVisibility();
+            
+            // Check if we have cached history for this session
+            if (jarvisHistoryBySession[sessionKey]) {
+                jarvisChatHistory = jarvisHistoryBySession[sessionKey];
+                renderJarvisChat();
+            } else {
+                // Load from server
+                jarvisChatHistory = [];
+                renderJarvisChat();
+                await loadJarvisHistory(sessionKey);
+            }
+        }
+        
+        async function refreshSessions() {
+            await loadSessions();
+        }
+        
+        // Create new session - prompts for name first
+        async function createNewSession() {
+            // Generate default name with timestamp
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const defaultLabel = `Session ${timestamp}`;
+            
+            // Prompt for session name using custom modal
+            showRenameModal(defaultLabel, async (label) => {
+                if (!label || !label.trim()) {
+                    return; // Cancelled
+                }
+                
+                const btn = document.querySelector('.new-session-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '...';
+                }
+                
+                try {
+                    const res = await fetch('/api/sessions/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            label: label.trim(),
+                            agentId: 'main',
+                            task: 'New session created from Task Board. Ready for instructions.'
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        // Refresh sessions to show new one
+                        await loadSessions();
+                        // Switch to the new session - key is in result.details.childSessionKey
+                        const newKey = data.result?.details?.childSessionKey || data.result?.childSessionKey;
+                        if (newKey) {
+                            currentSessionKey = newKey;
+                            document.getElementById('sessionSelector').value = newKey;
+                            updateDeleteButtonVisibility();
+                            await loadJarvisHistory(newKey);
+                        }
+                    } else {
+                        showConfirmModal('? Error', 'Failed to create session: ' + (data.error || 'Unknown error'), 'OK', () => {});
+                    }
+                } catch (e) {
+                    console.error('Error creating session:', e);
+                    showConfirmModal('? Error', 'Failed to create session: ' + e.message, 'OK', () => {});
+                } finally {
+                    const btn = document.querySelector('.new-session-btn');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = '+ New';
+                    }
+                }
+            });
+        }
+        
+        // Delete/close current session
+        function deleteCurrentSession() {
+            if (isMainSession(currentSessionKey)) {
+                alert('Cannot delete the main session');
+                return;
+            }
+            
+            // Get session label for display
+            const selector = document.getElementById('sessionSelector');
+            const selectedOption = selector.options[selector.selectedIndex];
+            const sessionLabel = selectedOption ? selectedOption.text : currentSessionKey;
+            
+            showConfirmModal(
+                'Close Session',
+                `Close "${sessionLabel}"? This will stop the session and clear its chat history.`,
+                'Close Session',
+                async () => {
+                    const btn = document.getElementById('deleteSessionBtn');
+                    btn.disabled = true;
+                    
+                    try {
+                        const res = await fetch(`/api/sessions/${encodeURIComponent(currentSessionKey)}`, {
+                            method: 'DELETE'
+                        });
+                        const data = await res.json();
+                        
+                        if (data.success) {
+                            // Visual feedback
+                            btn.style.background = 'var(--low)';
+                            btn.style.borderColor = 'var(--low)';
+                            
+                            // Clear cached history for this session
+                            delete jarvisHistoryBySession[currentSessionKey];
+                            
+                            // Switch back to first available session
+                            await loadSessions();
+                            
+                            // Update selector to first option (main)
+                            const selector = document.getElementById('sessionSelector');
+                            if (selector.options.length > 0) {
+                                currentSessionKey = selector.options[0].value;
+                                selector.value = currentSessionKey;
+                            }
+                            
+                            updateDeleteButtonVisibility();
+                            await loadJarvisHistory(currentSessionKey);
+                            
+                            setTimeout(() => {
+                                btn.style.background = '';
+                                btn.style.borderColor = '';
+                            }, 1000);
+                        } else {
+                            alert('Failed to delete session: ' + (data.error || 'Unknown error'));
+                        }
+                    } catch (e) {
+                        console.error('Error deleting session:', e);
+                        alert('Error deleting session: ' + e.message);
+                    } finally {
+                        btn.disabled = false;
+                    }
+                }
+            );
+        }
+        
+        // Custom input modal for naming sessions
+        let renameCallback = null;
+        
+        function showRenameModal(currentValue, callback, title = '? New Session', buttonText = 'Create') {
+            renameCallback = callback;
+            document.getElementById('renameModalTitle').textContent = title;
+            document.getElementById('renameModalBtn').textContent = buttonText;
+            document.getElementById('renameInput').value = currentValue;
+            document.getElementById('renameModal').classList.add('active');
+            document.getElementById('renameInput').focus();
+            document.getElementById('renameInput').select();
+        }
+        
+        function closeRenameModal() {
+            document.getElementById('renameModal').classList.remove('active');
+            renameCallback = null;
+        }
+        
+        function executeRename() {
+            const newValue = document.getElementById('renameInput').value;
+            if (renameCallback) {
+                renameCallback(newValue);
+            }
+            closeRenameModal();
+        }
+        
+        // Stop current session
+        async function stopCurrentSession() {
+            const btn = document.getElementById('stopSessionBtn');
+            btn.disabled = true;
+            
+            try {
+                await fetch(`/api/sessions/${encodeURIComponent(currentSessionKey)}/stop`, {
+                    method: 'POST'
+                });
+                
+                // Visual feedback - green for success
+                btn.style.background = 'var(--low)';
+                btn.style.borderColor = 'var(--low)';
+                btn.style.color = 'white';
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.style.background = '';
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 2000);
+            } catch (e) {
+                console.error('Error stopping session:', e);
+                btn.disabled = false;
+            }
+        }
+        
+        // Emergency stop all agents
+        async function stopAllAgents() {
+            if (!confirm('STOP: This will attempt to stop ALL running agent sessions. Continue?')) {
+                return;
+            }
+            
+            const btn = document.getElementById('stopAllBtn');
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/sessions/stop-all', { method: 'POST' });
+                const data = await res.json();
+                
+                // Visual feedback - green for success
+                btn.style.background = 'var(--low)';
+                btn.style.borderColor = 'var(--low)';
+                btn.style.color = 'white';
+                btn.title = `Stopped ${data.stopped?.length || 0} sessions`;
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.style.background = '';
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                    btn.title = 'Stop all agents';
+                }, 3000);
+                
+                // Refresh sessions
+                await loadSessions();
+            } catch (e) {
+                console.error('Error stopping all:', e);
+                btn.disabled = false;
+            }
+        }
+        
+        // Stop agent working on a task
+        async function stopTaskAgent() {
+            const taskId = document.getElementById('taskId').value;
+            if (!taskId) return;
+            
+            const btn = document.getElementById('stopAgentBtn');
+            btn.disabled = true;
+            
+            try {
+                // Get the task's session key
+                const task = tasks.find(t => t.id == taskId);
+                if (task && task.agent_session_key) {
+                    await fetch(`/api/sessions/${encodeURIComponent(task.agent_session_key)}/stop`, {
+                        method: 'POST'
+                    });
+                }
+                
+                // Also stop the work indicator
+                await fetch(`/api/tasks/${taskId}/stop-work`, { method: 'POST' });
+                
+                // Visual feedback
+                btn.style.background = 'var(--low)';
+                btn.style.borderColor = 'var(--low)';
+                btn.style.color = 'white';
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.style.background = '';
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 2000);
+                
+                // Refresh board
+                await loadTasks();
+                renderBoard();
+            } catch (e) {
+                console.error('Error stopping agent:', e);
+                btn.disabled = false;
+            }
+        }
+        
+        // Check if session key is the main session
+        function isMainSession(key) {
+            return key === 'main' || key === 'agent:main:main' || key?.includes('agent:main:main');
+        }
+        
+        // Confirmation modal
+        let confirmCallback = null;
+        
+        function showConfirmModal(title, message, buttonText, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmBtn').textContent = buttonText;
+            confirmCallback = callback;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+        
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+            confirmCallback = null;
+        }
+        
+        function executeConfirmAction() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmModal();
+        }
+        
+        // Update edit/delete buttons - disable for main session but keep visible
+        function updateDeleteButtonVisibility() {
+            const deleteBtn = document.getElementById('deleteSessionBtn');
+            const isMain = isMainSession(currentSessionKey);
+            
+            if (deleteBtn) {
+                deleteBtn.disabled = isMain;
+                deleteBtn.style.opacity = isMain ? '0.3' : '1';
+                deleteBtn.title = isMain ? 'Cannot delete main session' : 'Close this session';
+            }
+        }
+        
+        // Command bar paste handler
+        function setupCommandPasteHandler() {
+            const input = document.getElementById('jarvisChatInput');
+            if (input) {
+                input.addEventListener('paste', handleCommandPaste);
+            }
+        }
+        
+        function handleCommandPaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    event.preventDefault();
+                    const file = item.getAsFile();
+                    processCommandFile(file);
+                    break;
+                }
+            }
+        }
+        
+        function handleCommandFileSelect(event) {
+            const files = event.target.files;
+            for (const file of files) {
+                processCommandFile(file);
+            }
+            event.target.value = ''; // Reset so same file can be selected again
+        }
+        
+        function processCommandFile(file) {
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                alert(`File ${file.name} is too large (max 10MB)`);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const attachment = {
+                    type: file.type,
+                    data: e.target.result,
+                    filename: file.name
+                };
+                commandAttachments.push(attachment);
+                renderCommandAttachments();
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function renderCommandAttachments() {
+            const preview = document.getElementById('commandPastePreview');
+            if (commandAttachments.length === 0) {
+                preview.classList.remove('active');
+                preview.innerHTML = '';
+                return;
+            }
+            
+            preview.classList.add('active');
+            preview.innerHTML = commandAttachments.map((att, idx) => {
+                if (att.type.startsWith('image/')) {
+                    return `
+                        <div class="command-attachment-item">
+                            <img src="${att.data}" alt="${att.filename}" style="max-width: 80px; max-height: 60px; border-radius: 4px;">
+                            <span class="command-file-name">${att.filename}</span>
+                            <button class="remove-attachment" onclick="removeCommandAttachment(${idx})">×</button>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div class="command-attachment-item">
+                            <span class="command-file-name">${att.filename}</span>
+                            <button class="remove-attachment" onclick="removeCommandAttachment(${idx})">×</button>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+        
+        function removeCommandAttachment(idx) {
+            commandAttachments.splice(idx, 1);
+            renderCommandAttachments();
+        }
+        
+        function clearCommandAttachments() {
+            commandAttachments = [];
+            renderCommandAttachments();
+        }
+        
+        // Send message to Jarvis via backend
+        let pendingMessageId = null; // Track message we're waiting on to avoid WS duplicates
+        
+        async function sendJarvisMessage() {
+            const input = document.getElementById('jarvisChatInput');
+            const message = input.value.trim();
+            if (!message && commandAttachments.length === 0) return;
+            if (jarvisLoading) return;
+            
+            // Prepare attachments for sending
+            const attachmentsToSend = commandAttachments.length > 0 ? [...commandAttachments] : null;
+            
+            // Clear input immediately
+            input.value = '';
+            clearCommandAttachments();
+            
+            // Optimistic UI: add user message immediately
+            const optimisticMsg = {
+                id: null, // Will be assigned by server
+                role: 'user',
+                content: message || '(see attachment)',
+                attachments: attachmentsToSend,
+                time: formatTimeNow(),
+                _optimistic: true // Mark as optimistic for later replacement
+            };
+            jarvisChatHistory.push(optimisticMsg);
+            jarvisHistoryBySession[currentSessionKey] = jarvisChatHistory;
+            renderJarvisChat();
+            
+            // Show typing indicator
+            jarvisLoading = true;
+            document.getElementById('jarvisTyping').style.display = 'flex';
+            document.getElementById('jarvisSendBtn').disabled = true;
+            
+            try {
+                const payload = { 
+                    message: message || '(see attachment)',
+                    session: currentSessionKey
+                };
+                if (attachmentsToSend) {
+                    payload.attachments = attachmentsToSend;
+                }
+                
+                const res = await fetch('/api/jarvis/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await res.json();
+                
+                // Reload history from server to get the new messages with proper IDs
+                // This will replace the optimistic message with the real one
+                await loadJarvisHistory(currentSessionKey);
+                
+                if (data.response) {
+                    lastJarvisMessage = data.response.length > 60 
+                        ? data.response.substring(0, 60) + '...' 
+                        : data.response;
+                    updateCommandBarPreview();
+                } else if (data.error) {
+                    // Show error inline
+                    jarvisChatHistory.push({ role: 'assistant', content: `Error: ${data.error}`, time: formatTimeNow() });
+                    renderJarvisChat();
+                }
+            } catch (e) {
+                console.error('Jarvis chat error:', e);
+                jarvisChatHistory.push({ role: 'assistant', content: 'Failed to reach Jarvis. Is Clawdbot running?', time: formatTimeNow() });
+                renderJarvisChat();
+            } finally {
+                jarvisLoading = false;
+                document.getElementById('jarvisTyping').style.display = 'none';
+                document.getElementById('jarvisSendBtn').disabled = false;
+            }
+        }
+        
+        // Render chat messages
+        function renderJarvisChat() {
+            const container = document.getElementById('jarvisChatMessages');
+            const b = window.BRANDING || {};
+            const mainAgentName = b.mainAgentName || 'Assistant';
+            const mainAgentEmoji = b.mainAgentEmoji || '🤖';
+            
+            if (jarvisChatHistory.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Chat with ${mainAgentName} directly from the task board.</div>`;
+            } else {
+                container.innerHTML = jarvisChatHistory.map(msg => {
+                    const isUser = msg.role === 'user';
+                    const icon = isUser ? '👤' : mainAgentEmoji;
+                    const name = isUser ? 'You' : mainAgentName;
+                    
+                    // Render attachments if present
+                    let attachmentsHtml = '';
+                    if (msg.attachments && msg.attachments.length > 0) {
+                        attachmentsHtml = '<div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">' +
+                            msg.attachments.map(att => {
+                                if (att.type && att.type.startsWith('image/')) {
+                                    return `<img src="${att.data}" alt="${att.filename || 'image'}" style="max-width: 200px; max-height: 150px; border-radius: 6px; cursor: pointer;" onclick="window.open('${att.data}', '_blank')">`;
+                                } else {
+                                    return `<div style="padding: 0.25rem 0.5rem; background: var(--bg-dark); border-radius: 4px; font-size: 0.8rem;">${escapeHtml(att.filename || 'file')}</div>`;
+                                }
+                            }).join('') + '</div>';
+                    }
+                    
+                    return `
+                    <div class="jarvis-message ${msg.role}">
+                        <div class="msg-header">
+                            <span>${icon} ${name}</span>
+                            <span>${msg.time || ''}</span>
+                        </div>
+                        <div class="msg-content">${escapeHtml(msg.content)}${attachmentsHtml}</div>
+                    </div>
+                `}).join('');
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Handle incoming messages from WebSocket (for proactive Jarvis messages)
+        function handleJarvisWebSocketMessage(msg) {
+            if (msg.content) {
+                const msgSession = msg.session_key || 'main';
+                
+                // If we're actively sending a message to this session, skip WS updates
+                // The REST response + loadJarvisHistory will handle it authoritatively
+                if (jarvisLoading && msgSession === currentSessionKey) {
+                    console.log('Skipping WS message during active send:', msg.id);
+                    return;
+                }
+                
+                // Initialize session history if needed
+                if (!jarvisHistoryBySession[msgSession]) {
+                    jarvisHistoryBySession[msgSession] = [];
+                }
+                
+                // Check for duplicates by ID or content (also check optimistic messages)
+                const sessionHistory = jarvisHistoryBySession[msgSession];
+                const isDupe = sessionHistory.some(h => 
+                    (msg.id && h.id === msg.id) || 
+                    (h._optimistic && h.role === msg.role && h.content === msg.content) ||
+                    (h.role === msg.role && h.content === msg.content && h.time === formatTime(msg.timestamp))
+                );
+                
+                if (!isDupe) {
+                    const newMsg = { 
+                        id: msg.id,
+                        session_key: msgSession,
+                        role: msg.role, 
+                        content: msg.content, 
+                        attachments: msg.attachments,
+                        time: msg.timestamp ? formatTime(msg.timestamp) : formatTimeNow() 
+                    };
+                    
+                    // Add to session-specific history
+                    jarvisHistoryBySession[msgSession].push(newMsg);
+                    
+                    // If this is the current session, update display
+                    if (msgSession === currentSessionKey) {
+                        jarvisChatHistory.push(newMsg);
+                        if (msg.role === 'assistant') {
+                            lastJarvisMessage = msg.content.length > 60 ? msg.content.substring(0, 60) + '...' : msg.content;
+                            updateCommandBarPreview();
+                        }
+                        renderJarvisChat();
+                    }
+                }
+            }
+        }
+        
+        async function expandCommandBar() {
+            if (commandBarExpanded) return;
+            commandBarExpanded = true;
+            document.getElementById('commandBar').classList.add('expanded');
+            document.getElementById('commandBarOverlay').classList.add('active');
+            document.querySelector('.header').classList.add('command-active');
+            
+            // Ensure paste handler is attached
+            setupCommandPasteHandler();
+            
+            document.getElementById('jarvisChatInput').focus();
+            
+            // Load sessions and history
+            await loadSessions();
+            updateDeleteButtonVisibility(); // Enable/disable edit/delete buttons based on current session
+            
+            if (!jarvisHistoryBySession[currentSessionKey] || jarvisHistoryBySession[currentSessionKey].length === 0) {
+                await loadJarvisHistory(currentSessionKey);
+            } else {
+                jarvisChatHistory = jarvisHistoryBySession[currentSessionKey];
+            }
+            renderJarvisChat();
+        }
+        
+        function collapseCommandBar() {
+            commandBarExpanded = false;
+            commandFullsize = false;
+            document.getElementById('commandBar').classList.remove('expanded');
+            document.getElementById('commandBarExpanded').classList.remove('fullsize');
+            document.getElementById('commandBarOverlay').classList.remove('active');
+            document.querySelector('.header').classList.remove('command-active');
+            clearCommandAttachments();
+            updateCommandBarPreview();
+        }
+        
+        function toggleCommandFullsize() {
+            commandFullsize = !commandFullsize;
+            const panel = document.getElementById('commandBarExpanded');
+            const btn = document.getElementById('commandExpandBtn');
+            
+            if (commandFullsize) {
+                panel.classList.add('fullsize');
+                btn.title = 'Shrink';
+            } else {
+                panel.classList.remove('fullsize');
+                btn.title = 'Expand';
+            }
+        }
+        
+        function updateCommandBarPreview() {
+            document.getElementById('commandBarPreview').textContent = lastJarvisMessage;
+        }
+        
+        // Escape key closes command bar
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && commandBarExpanded) {
+                collapseCommandBar();
+            }
+        });
+        
+        // Help Modal
+        function openHelpModal() {
+            document.getElementById('helpModal').classList.add('active');
+        }
+        
+        function closeHelpModal() {
+            document.getElementById('helpModal').classList.remove('active');
+        }
+        
+        // Mention/Tag Agents (main agent added dynamically from config)
+        const AGENT_ICONS_MAP = {
+            'Architect': '🏛️',
+            'Security Auditor': '🔒',
+            'Code Reviewer': '📋',
+            'UX Manager': '🎨'
+        };
+        
+        function toggleMentionDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('mentionDropdown');
+            const isActive = dropdown.classList.contains('active');
+            
+            if (isActive) {
+                dropdown.classList.remove('active');
+            } else {
+                // Populate with agents (excluding User and Unassigned)
+                const agents = config.agents.filter(a => a !== 'User' && a !== 'Unassigned');
+                dropdown.innerHTML = agents.map(agent => `
+                    <div class="mention-option" onclick="insertMention('${agent}')">
+                        <span>${AGENT_ICONS_MAP[agent] || '○'}</span>
+                        <span>${agent}</span>
+                    </div>
+                `).join('');
+                dropdown.classList.add('active');
+            }
+        }
+        
+        function insertMention(agent) {
+            const input = document.getElementById('chatInput');
+            const mention = `@${agent} `;
+            
+            // Insert at cursor position or append
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const text = input.value;
+            
+            input.value = text.substring(0, start) + mention + text.substring(end);
+            input.focus();
+            input.setSelectionRange(start + mention.length, start + mention.length);
+            
+            document.getElementById('mentionDropdown').classList.remove('active');
+        }
+        
+        // Close mention dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.mention-btn') && !e.target.closest('.mention-dropdown')) {
+                document.getElementById('mentionDropdown')?.classList.remove('active');
+            }
+        });
+        
+        // Start
+        init();
+        connectWebSocket();
+    </script>
+</body>
+</html>

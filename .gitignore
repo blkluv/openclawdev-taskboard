@@ -1,0 +1,18 @@
+# Environment secrets - NEVER COMMIT
+.env
+*.env
+
+# Database
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+*.personalized
