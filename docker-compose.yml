@@ -12,3 +12,5 @@
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
