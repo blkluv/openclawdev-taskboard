@@ -4,8 +4,10 @@ from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+# Serve static UI files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Serve dashboard on root
 @app.get("/")
 def serve_dashboard():
-    return FileResponse("frontend/index.html")
+    return FileResponse("static/index.html")
